@@ -1,0 +1,23 @@
+{
+  "_generatedBy": "npm run assets:build - do not edit by hand",
+  "figures": {
+    "male": {
+      "height": 1.6323,
+      "crownY": 1.6306,
+      "soleY": -0.0017,
+      "restArmAngleDeg": 88.8575,
+      "armAbductionDeg": 12.03,
+      "shoulderWidth": 0.1982,
+      "hipWidth": 0.2037
+    },
+    "female": {
+      "height": 1.673,
+      "crownY": 1.6714,
+      "soleY": -0.0016,
+      "restArmAngleDeg": 88.322,
+      "armAbductionDeg": 15.47,
+      "shoulderWidth": 0.183,
+      "hipWidth": 0.1985
+    }
+  }
+}

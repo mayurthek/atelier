@@ -159,7 +159,7 @@ export const ARM_BONES = {
 /**
  * Joints from shoulder to wrist, per side.
  *
- * The Genesis arm chain has six joints between clavicle and wrist, not two.
+ * the arm chain has six joints between clavicle and wrist, not two.
  * Lowering the arms requires rotating *every* joint in the chain by the same
  * amount: each joint's bind rotation is relative to its parent, so rotating one
  * joint swings only that segment and leaves the forearm pointing outward.

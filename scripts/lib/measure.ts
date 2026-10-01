@@ -72,6 +72,12 @@ export interface FigureMetrics {
 	 */
 	restArmAngleDeg: number;
 	/**
+	 * Minimum outward angle, in degrees, at which the forearm and hand clear the
+	 * torso. The walk uses this so the arms hang beside the body instead of
+	 * through it.
+	 */
+	armAbductionDeg: number;
+	/**
 	 * Largest left/right discrepancy across the clavicles, shoulders, wrists and
 	 * hips, in metres. A healthy rig is under a millimetre; anything larger
 	 * means the mesh or skeleton is corrupt.
@@ -409,10 +415,95 @@ export function measureFigure(document: Document, source: string): FigureMetrics
 		restArmAngleDeg = round((Math.atan2(horiz, vert) * 180) / Math.PI);
 	}
 
-	// Left/right rig symmetry. Only X is mirrored across the body; Y and Z should
-	// match between sides. Limbs legitimately sit off-centre, so the test is
-	// whether each pair is symmetric *about* the axis, not whether either joint
-	// sits on it.
+	/**
+ * Minimum arm abduction for the hand to clear the body.
+ *
+ * The shoulder joint sits at roughly x=0.10 m, but the torso is up to 0.31 m
+ * wide at the waist. An arm dropped to *exactly* vertical therefore hangs
+ * straight through the body: measured on the shipped figures, the elbow landed
+ * 5.6 cm inside the male torso and 7.2 cm inside the female's, so the forearm and
+ * hand vanished into the silhouette and only the shoulder read.
+ *
+ * Real arms hang slightly outboard for exactly this reason. The angle is solved
+ * rather than dialled in by hand, because it depends on proportions that differ
+ * between the figures — the female has narrower shoulders and a wider ribcage,
+ * so she needs a larger angle than the male.
+ *
+ * Only the region *below the elbow* constrains the angle. The upper arm touching
+ * the ribcage at the armpit is anatomy, not a bug; forcing clearance there would
+ * demand a 40 degree splay.
+ */
+function solveArmAbduction(
+	regions: Record<BodyRegionName, RegionSlice[]>,
+	landmarks: Record<string, Vec3>,
+	upperArmLength: number,
+): number {
+	/**
+	 * Clearance wanted between the hand and the body, in metres. Generous: a
+	 * hand tucked against the hip reads as a mitten in the body's own silhouette.
+	 */
+	const HAND_MARGIN = 0.045;
+	/**
+	 * Clearance wanted at the elbow. Much smaller on purpose — the upper arm
+	 * resting against the ribcage is anatomy, and demanding a hand-sized gap
+	 * there produces a chicken-wing. Enough that the elbow reads as its own form
+	 * rather than dissolving into the torso.
+	 */
+	const ELBOW_MARGIN = 0.02;
+
+	const shoulder = landmarks['shoulder01_L'];
+	if (!shoulder || !(upperArmLength > 0)) return 8;
+	const [shoulderX, shoulderY] = shoulder;
+	const originX = Math.abs(shoulderX);
+
+	// Torso half-width at a given height, or 0 below the measured range.
+	const halfWidthAt = (t: number): number => {
+		let best = 0;
+		for (const slice of regions.torso) {
+			if (Math.abs(slice.t - t) < 0.06) best = Math.max(best, slice.width / 2);
+		}
+		return best;
+	};
+
+	// A point at distance d along the arm sits at x = originX + d*sin(a) and
+	// y = shoulderY - d*cos(a), so clearing a slice at height t needs
+	// tan(a) > (halfWidth + margin - originX) / (shoulderY - t).
+	//
+	// The elbow's own height depends on the angle, so both constraints are
+	// re-evaluated each pass until they settle.
+	let tan = 0;
+	for (let pass = 0; pass < 4; pass++) {
+		const angle = Math.atan(tan);
+		const elbowY = shoulderY - upperArmLength * Math.cos(angle);
+		const elbowX = originX + upperArmLength * Math.sin(angle);
+
+		// Elbow clears its own height.
+		const elbowNeed = halfWidthAt(elbowY) + ELBOW_MARGIN - elbowX;
+		if (elbowNeed > 0) {
+			// Widening the elbow means widening every point below it, so fold the
+			// shortfall into tan via the elbow's own leverage arm.
+			tan += elbowNeed / Math.max(0.05, upperArmLength);
+		}
+
+		// Forearm and hand clear everything below the elbow.
+		for (const slice of regions.torso) {
+			if (slice.t > elbowY || slice.t < 0.2) continue;
+			const need = slice.width / 2 + HAND_MARGIN - originX;
+			const drop = shoulderY - slice.t;
+			if (drop <= 1e-3) continue;
+			tan = Math.max(tan, need / drop);
+		}
+	}
+
+	const degrees = (Math.atan(Math.max(0, tan)) * 180) / Math.PI;
+	// Clamped: below 4 the arm grazes the hip, above 22 it reads as a puppet.
+	return Math.round(Math.min(22, Math.max(4, degrees)) * 100) / 100;
+}
+
+// Left/right rig symmetry. Only X is mirrored across the body; Y and Z should
+// match between sides. Limbs legitimately sit off-centre, so the test is
+// whether each pair is symmetric *about* the axis, not whether either joint
+// sits on it.
 	const MIRRORED = [
 		['clavicle_L', 'clavicle_R'],
 		['shoulder01_L', 'shoulder01_R'],
@@ -466,6 +557,11 @@ export function measureFigure(document: Document, source: string): FigureMetrics
 			hipWidth: dist(landmarks['upperleg01_L']!, landmarks['upperleg01_R']!),
 		},
 		restArmAngleDeg,
+		armAbductionDeg: solveArmAbduction(
+			regions,
+			landmarks,
+			seg('shoulder01_L', 'lowerarm01_L'),
+		),
 		maxAsymmetry: round(maxAsymmetry),
 		restPoseQuaternions,
 	};

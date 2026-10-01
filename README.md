@@ -30,7 +30,7 @@ npm run preview     # SVG contact sheet of the walk, both figures
 ```
 
 The two optimised GLBs are committed, so the app can render them. Re-running the
-asset pipeline additionally needs the raw Daz figures in `assets-src/` — see
+asset pipeline additionally needs the raw source figures in `assets-src/` — see
 [docs/ASSETS.md](docs/ASSETS.md), which also covers licensing.
 
 ## Commands
@@ -50,7 +50,7 @@ asset pipeline additionally needs the raw Daz figures in `assets-src/` — see
 
 ### Assets
 
-Two Daz 3D Genesis figures with an identical 163-joint rig, converted to web-ready
+Two humanoid figures with an identical 163-joint rig, converted to web-ready
 GLBs. They share bone names *and order*, which is the property that matters: one
 animation system drives both, so male and female collections cost almost nothing
 extra. The pipeline verifies the rig, strips dead weight, compresses textures, and
@@ -75,7 +75,7 @@ pose discontinuity — but the feel is tuned by eye in the viewport, and
 ## Layout
 
 ```
-assets-src/            raw Daz figures (local only, gitignored)
+assets-src/            raw source figures (local only, gitignored)
 content/               generated figure metrics
 public/models/         optimised GLBs, committed
 scripts/               asset pipeline + invariant suites + previews
@@ -104,6 +104,6 @@ From the product requirements, and the constraints this implementation follows:
 ## Licence
 
 Code and documentation in this repository are yours. The committed GLBs are
-converted outputs of Daz Genesis base figures; see
+converted outputs of source figures; see
 [docs/ASSETS.md](docs/ASSETS.md#licensing) for the terms that apply before
 redistribution.

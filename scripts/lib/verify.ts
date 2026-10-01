@@ -1,5 +1,5 @@
 import type { Document } from '@gltf-transform/core';
-import { GENESIS_JOINTS, GENESIS_JOINT_COUNT, ANIMATED_BONES, KEEP_MESH_PATTERNS, BODY_REGION_NAMES } from './rig.js';
+import { RIG_JOINTS, RIG_JOINT_COUNT, ANIMATED_BONES, KEEP_MESH_PATTERNS, BODY_REGION_NAMES } from './rig.js';
 import type { FigureMetrics } from './measure.js';
 
 export interface Check {
@@ -46,13 +46,13 @@ export function verifyRig(
 	const joints = skin.listJoints();
 	const names = joints.map((j) => j.getName());
 	push(
-		`joint count == ${GENESIS_JOINT_COUNT}`,
-		names.length === GENESIS_JOINT_COUNT,
+		`joint count == ${RIG_JOINT_COUNT}`,
+		names.length === RIG_JOINT_COUNT,
 		`found ${names.length}`,
 	);
 
 	// Exact positional diff, so a mismatch names the offending bone.
-	const expected = GENESIS_JOINTS as readonly string[];
+	const expected = RIG_JOINTS as readonly string[];
 	let firstMismatch = 'none';
 	let mismatches = 0;
 	for (let i = 0; i < Math.max(names.length, expected.length); i++) {

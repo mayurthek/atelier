@@ -6,8 +6,8 @@ import {
 	LEG_BONES,
 	SPINE_BONES,
 	type PoseDeltas,
-} from './frames.js';
-import type { Pose } from './walk.js';
+} from './frames';
+import type { Pose } from './walk';
 
 /**
  * Idle, turn and pose states for the runway.
@@ -19,8 +19,21 @@ import type { Pose } from './walk.js';
 
 const DEG = Math.PI / 180;
 
-/** Neutral standing pose. Weight settles onto one hip, the classic contrapposto. */
-export function idlePose(elapsed = 0, restArmAngle = 88.86, weightShift = 0.012): Pose {
+/**
+ * Neutral standing pose. Weight settles onto one hip, the classic contrapposto.
+ *
+ * `armAbduction` matters here as much as it does in the walk. Dropping the arms
+ * by exactly `restArmAngle` buries them in the torso, and this pose is what the
+ * show holds for over a second at the end of every look — so getting it wrong
+ * snaps the arms into the body the moment the model stops.
+ */
+export function idlePose(
+	elapsed = 0,
+	restArmAngle = 88.86,
+	armAbduction = 12,
+	weightShift = 0.012,
+): Pose {
+	const drop = restArmAngle - armAbduction;
 	const breath = Math.sin(elapsed * 0.9) * 0.5 + 0.5;
 	const sway = Math.sin(elapsed * 0.55);
 
@@ -39,13 +52,11 @@ export function idlePose(elapsed = 0, restArmAngle = 88.86, weightShift = 0.012)
 	// The head stills the torso — counter-rotation, as in a real standing figure.
 	set('head', axisAngle(0, 0, 1, -1.0).multiply(axisAngle(1, 0, 0, 2.0 - breath * 0.6)));
 
-	// Arms hang at the sides. `restArmAngle` is the drop magnitude that takes them
-	// there from bind pose, so idle and the walk agree and blending between them
-	// does not move the wrists.
-	for (const bone of ARM_CHAIN_L_ALL) set(bone, axisAngle(0, 0, 1, -restArmAngle));
-	for (const bone of ARM_CHAIN_R_ALL) set(bone, axisAngle(0, 0, 1, restArmAngle));
-	set(ARM_BONES.forearmL, axisAngle(0, 0, 1, -restArmAngle).multiply(axisAngle(1, 0, 0, -16)));
-	set(ARM_BONES.forearmR, axisAngle(0, 0, 1, restArmAngle).multiply(axisAngle(1, 0, 0, -16)));
+	// Arms hang at the sides, abducted clear of the body so the hands stay free.
+	for (const bone of ARM_CHAIN_L_ALL) set(bone, axisAngle(0, 0, 1, -drop));
+	for (const bone of ARM_CHAIN_R_ALL) set(bone, axisAngle(0, 0, 1, drop));
+	set(ARM_BONES.forearmL, axisAngle(0, 0, 1, -drop).multiply(axisAngle(1, 0, 0, -16)));
+	set(ARM_BONES.forearmR, axisAngle(0, 0, 1, drop).multiply(axisAngle(1, 0, 0, -16)));
 
 	// Weight on the left leg, right knee soft.
 	set(LEG_BONES.hipR, axisAngle(1, 0, 0, 3));
@@ -62,7 +73,7 @@ export function idlePose(elapsed = 0, restArmAngle = 88.86, weightShift = 0.012)
  * `progress` 0..1 rotates through roughly 120 degrees so the figure presents
  * itself to the audience, which is the beat the pause in §16 is describing.
  */
-export function turnPose(progress: number, restArmAngle = 88.86): Pose {
+export function turnPose(progress: number, restArmAngle = 88.86, armAbduction = 12): Pose {
 	const t = Math.max(0, Math.min(1, progress));
 	const eased = ease(t);
 	const yaw = eased * 120;
@@ -80,9 +91,10 @@ export function turnPose(progress: number, restArmAngle = 88.86): Pose {
 	set('head', axisAngle(0, 1, 0, yaw * 0.2));
 
 	// Arms ease slightly away from the body as the turn opens up, so the gesture
-	// reads rather than hanging inert.
+	// reads rather than hanging inert. The base drop is the same abducted one the
+	// walk uses, otherwise the arms snap inward the moment the turn starts.
 	const open = eased * 8;
-	const drop = restArmAngle - open;
+	const drop = restArmAngle - armAbduction - open;
 	for (const bone of ARM_CHAIN_L_ALL) set(bone, axisAngle(0, 0, 1, -drop));
 	for (const bone of ARM_CHAIN_R_ALL) set(bone, axisAngle(0, 0, 1, drop));
 	set(ARM_BONES.forearmL, axisAngle(0, 0, 1, -drop).multiply(axisAngle(1, 0, 0, -20)));
@@ -107,15 +119,16 @@ export function turnPose(progress: number, restArmAngle = 88.86): Pose {
  * Anchoring `progress = 0` to zero therefore starts exactly at bind pose, which
  * is what stops the model snapping from a T-pose on the show's first frame.
  */
-export function entrancePose(progress: number, restArmAngle = 88.86): Pose {
+export function entrancePose(progress: number, restArmAngle = 88.86, armAbduction = 12): Pose {
 	const t = Math.max(0, Math.min(1, progress));
 	const deltas = new Map<string, Quaternion>();
 	const set = (bone: string, q: Quaternion): void => {
 		deltas.set(bone, q);
 	};
 
-	// Arms sweep from bind (0) down to the sides (restArmAngle).
-	const drop = ease(t) * restArmAngle;
+	// Arms sweep from bind (0) down to the sides — to the *abducted* sides,
+	// matching the walk, so there is no jump as the show hands over.
+	const drop = ease(t) * (restArmAngle - armAbduction);
 	for (const bone of ARM_CHAIN_L_ALL) set(bone, axisAngle(0, 0, 1, -drop));
 	for (const bone of ARM_CHAIN_R_ALL) set(bone, axisAngle(0, 0, 1, drop));
 	const bend = -(6 + 12 * ease(t));

@@ -1,5 +1,5 @@
 import { Euler, Quaternion, Vector3 } from 'three';
-import { ARM_BONES, ARM_CHAIN_L, ARM_CHAIN_R, LEG_BONES, SPINE_BONES, type PoseDeltas } from './frames.js';
+import { ARM_BONES, ARM_CHAIN_L, ARM_CHAIN_R, LEG_BONES, SPINE_BONES, type PoseDeltas } from './frames';
 
 /**
  * Procedural runway walk.
@@ -46,6 +46,16 @@ export interface WalkSettings {
 	 * exactly this much lands them at the figure's sides.
 	 */
 	restArmAngle: number;
+	/**
+	 * Outward angle, in degrees, at which the arms leave the body.
+	 *
+	 * Zero drops the arms to exactly vertical, which buries them in the torso —
+	 * the shoulder joint sits at x≈0.10 m while the waist is 0.31 m wide, so a
+	 * vertical arm passes straight through the body and the hand disappears into
+	 * the hip. The angle is solved per figure by the asset pipeline, because it
+	 * depends on proportions that differ between them.
+	 */
+	armAbduction: number;
 	/** forward lean in degrees */
 	lean: number;
 }
@@ -65,6 +75,8 @@ export const RUNWAY_WALK: WalkSettings = {
 	bob: 0.022,
 	armLower: 1,
 	restArmAngle: 88.86,
+	// Overridden per figure by the pipeline; this is the male figure's value.
+	armAbduction: 8.5,
 	lean: 3,
 };
 
@@ -224,12 +236,17 @@ function applyLeg(
  * occupies +X, so dropping it needs a NEGATIVE roll and the right arm mirrors.
  * Getting this backwards sends the left arm up over the head.
  *
- * Chain: the Genesis arm is SIX joints from shoulder to wrist, each with its own
+ * Chain: the arm is SIX joints from shoulder to wrist, each with its own
  * bind rotation relative to its parent. Rotating only `upperarm01` swings one
  * segment and leaves the forearm pointing outward — that build left the wrist at
  * x=0.42, still nearly horizontal. Rotating every joint in the chain by the same
  * angle treats the arm as a rigid unit pivoting at the shoulder, which is what
  * dropping a T-pose arm actually is.
+ *
+ * Abduction: dropping by exactly `restArmAngle` puts the arm dead vertical from
+ * a shoulder joint that sits *on* the body surface, so the forearm and hand end
+ * up inside the torso — the hand vanishes into the hip. Subtracting the
+ * abduction angle swings the arm outboard until it hangs clear.
  */
 function applyArms(
 	set: (bone: string, q: Quaternion) => void,
@@ -237,7 +254,7 @@ function applyArms(
 	settings: WalkSettings,
 	armLower: number,
 ): void {
-	const drop = armLower * settings.restArmAngle;
+	const drop = Math.max(0, armLower * (settings.restArmAngle - settings.armAbduction));
 	// Arms counter-swing against the same-side leg; mirrored so the pair opposes.
 	const swingLeft = Math.sin(phase * 2 * Math.PI) * settings.armSwing;
 	const swingRight = -swingLeft;

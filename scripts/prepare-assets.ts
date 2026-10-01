@@ -1,11 +1,10 @@
 /**
  * ATELIER — Phase 1 asset pipeline.
  *
- * Converts the raw Daz Genesis figures in assets-src/ into web-ready models in
- * public/models/, and emits content/figure-metrics.json for the garment
- * generator to consume.
+ * Converts the raw source figures in assets-src/ into web-ready models in
+ * public/models/, and emits measurements for the garment generator.
  *
- *   pnpm assets:build
+ *   npm run assets:build
  *
  * Order matters:
  *   read -> verify -> measure -> strip -> prune/dedup -> compress maps
@@ -13,6 +12,14 @@
  *
  * Measurement must happen before any topology optimisation, because dedup and
  * quantize change vertex identity and would invalidate the body profile.
+ *
+ * Outputs:
+ *   public/models/*.glb               committed, web-ready
+ *   content/figure-metrics.json       gitignored, used by the checks and Phase 4
+ *   src/lib/scene/figure-params.json  committed; the handful of values the app
+ *                                     needs at build time. Kept separate from
+ *                                     the full metrics so the client bundle
+ *                                     never carries the 62 KB body profile.
  */
 
 import { NodeIO, type Document, type Texture } from '@gltf-transform/core';
@@ -55,7 +62,7 @@ function human(bytes: number): string {
 /**
  * Re-encode every texture at a known quality and cap.
  *
- * The raw Daz maps are 2048px PNGs at 0.6-4 MB each and are 89% of file size.
+ * The source maps are 2048px PNGs at 0.6-4 MB each and are 89% of file size.
  * Base colour goes to JPEG 90 with 4:4:4 chroma (no colour bleeding on the
  * small dark details like eyebrows and lashes), which stays inside core
  * glTF 2.0 so no extension is required. Normal and ORM maps stay lossless PNG,
@@ -176,7 +183,7 @@ async function main(): Promise<void> {
 	for (const spec of FIGURES) {
 		if (!existsSync(path.join(SRC_DIR, spec.source))) {
 			console.error(`\nMISSING ${path.join(SRC_DIR, spec.source)}`);
-			console.error('Place the raw Genesis GLB there. See docs/ASSETS.md.\n');
+			console.error('Place the raw source GLB there. See docs/ASSETS.md.\n');
 			process.exit(1);
 		}
 	}
@@ -189,7 +196,42 @@ async function main(): Promise<void> {
 	const metricsPath = path.join(CONTENT_DIR, 'figure-metrics.json');
 	await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
 
+	// The app needs only a few of these numbers, and the full profile is 62 KB —
+	// far too much to pull into a client bundle for two angles and a height.
+	const params = Object.fromEntries(
+		FIGURES.map((spec) => {
+			const m = metrics[spec.id]!;
+			return [
+				spec.id,
+				{
+					height: m.height,
+					crownY: m.crownY,
+					soleY: m.soleY,
+					restArmAngleDeg: m.restArmAngleDeg,
+				armAbductionDeg: m.armAbductionDeg,
+					shoulderWidth: m.segments.shoulderWidth,
+					hipWidth: m.segments.hipWidth,
+				},
+			];
+		}),
+	);
+	const paramsPath = path.join(ROOT, 'src', 'lib', 'scene', 'figure-params.json');
+	await writeFile(
+		paramsPath,
+		`${JSON.stringify(
+			{
+				// Documented so the next reader knows why this file exists and why it
+				// is so much smaller than figure-metrics.json.
+				_generatedBy: 'npm run assets:build - do not edit by hand',
+				figures: params,
+			},
+			null,
+			2,
+		)}\n`,
+	);
+
 	console.log(`\nwrote ${path.relative(ROOT, metricsPath)}`);
+	console.log(`wrote ${path.relative(ROOT, paramsPath)}`);
 	for (const spec of FIGURES) {
 		console.log(`wrote ${path.relative(ROOT, path.join(OUT_DIR, spec.output))}`);
 	}

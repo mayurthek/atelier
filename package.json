@@ -9,8 +9,10 @@
     "assets:check": "tsx scripts/inspect-models.ts",
     "anim:check": "tsx scripts/check-walk.ts",
     "show:check": "tsx scripts/check-show.ts",
-    "check": "npm run typecheck && npm run anim:check && npm run show:check",
+    "stage:check": "tsx scripts/check-stage.ts",
+    "check": "npm run typecheck && npm run anim:check && npm run show:check && npm run stage:check",
     "anim:preview": "tsx scripts/preview-gait.ts",
+    "anim:arms": "tsx scripts/preview-arms.ts",
     "preview": "tsx scripts/preview-gait.ts male && tsx scripts/preview-gait.ts female",
     "typecheck": "tsc --noEmit",
     "dev": "next dev",
@@ -21,10 +23,16 @@
     "@gltf-transform/core": "^4.5.1",
     "@gltf-transform/extensions": "^4.5.1",
     "@gltf-transform/functions": "^4.5.1",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
     "@types/three": "^0.186.0",
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "sharp": "^0.35.5",
     "three": "^0.186.1",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

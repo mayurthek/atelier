@@ -1,5 +1,5 @@
 /**
- * Genesis (Daz 3D) humanoid rig contract.
+ * Humanoid rig contract.
  *
  * Our two source figures — ASIAN MAN and AFRICA WOMAN — were exported from
  * Blender and share an identical 163-joint hierarchy: same names, same order.
@@ -12,7 +12,7 @@
  */
 
 /** All 163 joint names, in skin.joints order. Verified against male_raw.glb. */
-export const GENESIS_JOINTS = [
+export const RIG_JOINTS = [
 	'root',
 	'spine05', 'spine04', 'spine03', 'spine02', 'breast_L', 'breast_R', 'spine01',
 	'clavicle_L', 'shoulder01_L', 'upperarm01_L', 'upperarm02_L', 'lowerarm01_L', 'lowerarm02_L', 'wrist_L',
@@ -56,7 +56,7 @@ export const GENESIS_JOINTS = [
 	'toe5-1_R', 'toe5-2_R', 'toe5-3_R',
 ] as const;
 
-export const GENESIS_JOINT_COUNT = GENESIS_JOINTS.length; // 163
+export const RIG_JOINT_COUNT = RIG_JOINTS.length; // 163
 
 export type Side = 'L' | 'R';
 
@@ -87,6 +87,9 @@ export const LANDMARK_BONES = [
 	'clavicle_L', 'clavicle_R',
 	'shoulder01_L', 'shoulder01_R',
 	'upperarm01_L', 'upperarm01_R',
+	// `upperarm02` is the true elbow joint; `lowerarm01` is already the forearm.
+	// The arm-abduction solver needs the elbow, not the forearm, to place it.
+	'upperarm02_L', 'upperarm02_R',
 	'lowerarm01_L', 'lowerarm01_R',
 	'wrist_L', 'wrist_R',
 	'pelvis_L', 'pelvis_R',

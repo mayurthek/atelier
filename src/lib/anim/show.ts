@@ -1,6 +1,6 @@
-import { FigureRig } from './figure.js';
-import { walkPose, RUNWAY_WALK, type Pose, type WalkSettings } from './walk.js';
-import { idlePose, turnPose, entrancePose, blendPose } from './clip.js';
+import { FigureRig } from './figure';
+import { walkPose, RUNWAY_WALK, type Pose, type WalkSettings } from './walk';
+import { idlePose, turnPose, entrancePose, blendPose } from './clip';
 
 /**
  * The show director.
@@ -180,11 +180,15 @@ export class ShowDirector {
 	private composePose(): Pose {
 		const t = this.phaseProgress();
 		const restArmAngle = this.config.settings.restArmAngle;
+		// Every pose in the show must drop the arms to the same abducted angle as
+		// the walk. Omitting it here is what put the arms inside the body on the
+		// held pose at the end of every look.
+		const armAbduction = this.config.settings.armAbduction;
 		switch (this.phase) {
 			case 'entrance':
 				// Arms come down from bind pose, then hand over to the walk.
 				return blendPose(
-					entrancePose(t, restArmAngle),
+					entrancePose(t, restArmAngle, armAbduction),
 					walkPose(this.gaitPhase(), this.config.settings),
 					ease(Math.max(0, t * 2 - 1)),
 				);
@@ -194,17 +198,25 @@ export class ShowDirector {
 				// Settle from the walk into the held pose.
 				return blendPose(
 					walkPose(this.gaitPhase(), this.config.settings),
-					idlePose(this.elapsed, restArmAngle),
+					idlePose(this.elapsed, restArmAngle, armAbduction),
 					ease(Math.min(1, t * 2)),
 				);
 			case 'turn':
 				// Cross-fade out of the held pose. Without this the turn's first frame
 				// differs from the pose it inherits — the ribcage roll and the idle
 				// weight shift both vanish at once, snapping the wrist ~16 mm.
-				return blendPose(idlePose(this.elapsed, restArmAngle), turnPose(t, restArmAngle), ease(t));
+				return blendPose(
+					idlePose(this.elapsed, restArmAngle, armAbduction),
+					turnPose(t, restArmAngle, armAbduction),
+					ease(t),
+				);
 			case 'exit':
 				// Return to neutral and hold.
-				return blendPose(turnPose(1, restArmAngle), idlePose(this.elapsed, restArmAngle), ease(t));
+				return blendPose(
+					turnPose(1, restArmAngle, armAbduction),
+					idlePose(this.elapsed, restArmAngle, armAbduction),
+					ease(t),
+				);
 		}
 	}
 }

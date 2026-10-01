@@ -1,7 +1,7 @@
 /**
  * Shared rig vocabulary for the runtime animation layer.
  *
- * The pipeline keeps its own copy of the Genesis contract in
+ * The pipeline keeps its own copy of the rig contract in
  * `scripts/lib/rig.ts` (it runs before the app exists and hardcodes 163 names
  * as a verification contract). This file mirrors the small subset the runtime
  * needs. Kept separate deliberately: build-time strictness vs runtime payload.
@@ -49,6 +49,8 @@ export interface FigureMetrics {
 		hipWidth: number;
 	};
 	restArmAngleDeg: number;
+	/** Minimum outward arm angle for the hands to clear the torso, in degrees. */
+	armAbductionDeg: number;
 	maxAsymmetry: number;
 	restPoseQuaternions: Record<string, [number, number, number, number]>;
 }

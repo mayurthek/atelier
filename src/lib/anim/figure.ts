@@ -1,9 +1,9 @@
 import { Matrix3, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
-import { RigFrames, type PoseDeltas } from './frames.js';
-import type { Pose } from './walk.js';
+import { RigFrames, type PoseDeltas } from './frames';
+import type { Pose } from './walk';
 
 /**
- * Applies procedural poses to a Genesis figure.
+ * Applies procedural poses to a rigged figure.
  *
  * The subtle part is ordering. three.js composes a bone's world transform as
  * `parentWorld * local`, so to land a bone at a desired *world* rotation the
@@ -57,7 +57,7 @@ export class FigureRig {
 			if (!rootNode && node.name === 'root') rootNode = node;
 		});
 		if (rootNode) {
-			// Genesis roots sit at roughly (0, -1.34, -8.5) to place the figure on
+			// The rig root sits at roughly (0, -1.34, -8.5) to place the figure on
 			// the origin. Zeroing it instead of offsetting from it throws the whole
 			// body 8.5 m back down the runway.
 			this.rootBindPosition.copy(rootNode.position);

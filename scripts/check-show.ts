@@ -60,8 +60,15 @@ async function checkShow(id: string, file: string): Promise<Check[]> {
 
 	const metrics = JSON.parse(await readFile('content/figure-metrics.json', 'utf8')) as Record<
 		string,
-		{ restArmAngleDeg: number }
+		{ restArmAngleDeg: number; regions: Record<string, { t: number; width: number }[]> }
 	>;
+	const torso = metrics[id]?.regions?.torso ?? [];
+
+	/** Widest torso half-width within `tolerance` of a height. */
+	const torsoHalfWidthAt = (y: number, tolerance = 0.07): number =>
+		torso
+			.filter((s) => Math.abs(s.t - y) < tolerance)
+			.reduce((w, s) => Math.max(w, s.width / 2), 0);
 
 	const scene = await loadModelForAnimation(file);
 	const rig = new FigureRig(scene, ANIMATED_BONES);
@@ -74,6 +81,7 @@ async function checkShow(id: string, file: string): Promise<Check[]> {
 	let lowestToe = Infinity;
 	let maxHeadLateral = 0;
 	let previousWrist = rig.worldPositionOf('wrist_L').clone();
+	let minWristClearance = Infinity;
 	let previousTravel = 0;
 	let travelMonotonic = true;
 	let totalFrames = 0;
@@ -100,6 +108,14 @@ async function checkShow(id: string, file: string): Promise<Check[]> {
 			rig.worldPositionOf('toe1-1_R').y,
 		);
 		maxHeadLateral = Math.max(maxHeadLateral, Math.abs(rig.worldPositionOf('head').x));
+
+		// Clearance between the wrist and the torso surface. The arm has radius, so
+		// this measures the joint axis; the check threshold leaves room for it.
+		const wristNow = rig.worldPositionOf('wrist_L');
+		if (state.phase === 'pose' || state.phase === 'turn' || state.phase === 'exit') {
+			const clearance = Math.abs(wristNow.x) - torsoHalfWidthAt(wristNow.y);
+			if (Number.isFinite(clearance)) minWristClearance = Math.min(minWristClearance, clearance);
+		}
 
 		// Wrist displacement per frame, and its change from the previous frame.
 		// The second value is what actually detects a pop: smooth motion has a
@@ -155,6 +171,17 @@ async function checkShow(id: string, file: string): Promise<Check[]> {
 		'head stays within a narrow lateral band',
 		maxHeadLateral < 0.12,
 		`max head |x| ${maxHeadLateral.toFixed(3)} m`,
+	);
+
+	// The arms must stay clear of the body in the *held* poses, not just the
+	// walk. This is a real regression guard: `idlePose` once dropped the arms by
+	// `restArmAngle` and ignored the abduction angle, so the moment a model
+	// stopped walking its arms snapped inward and disappeared into the torso —
+	// invisible in the gait suite, which only samples the walk.
+	push(
+		'arms clear the torso in held poses',
+		minWristClearance >= 0.02,
+		`tightest wrist clearance ${(minWristClearance * 1000).toFixed(0)} mm over torso (need 20 mm)`,
 	);
 
 	// Continuity. A pop is a single frame whose motion is wildly out of scale with

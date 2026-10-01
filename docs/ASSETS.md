@@ -2,8 +2,8 @@
 
 ## Source figures
 
-Both figures are **Daz 3D Genesis** base characters, exported from Blender
-(Khronos glTF I/O v3.3.36) and supplied as `.glb`:
+Both figures are humanoid base characters, exported from Blender (Khronos glTF
+I/O v3.3.36) and supplied as `.glb`:
 
 | Source | Shipped as | Height |
 |---|---|---|
@@ -146,6 +146,6 @@ transform — the face stays neutral, which is what a runway wants anyway.
 
 ## Bone contract
 
-`GENESIS_JOINTS` in `scripts/lib/rig.ts` hardcodes all 163 names in order. If a
+`RIG_JOINTS` in `scripts/lib/rig.ts` hardcodes all 163 names in order. If a
 future asset has a different rig, `verifyRig()` fails and names the first
 offending bone rather than shipping a figure that animates in half its limbs.

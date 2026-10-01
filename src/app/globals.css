@@ -1,0 +1,58 @@
+/* §25 palette. Defined as custom properties so the R3F scene and the DOM UI read
+   from one source rather than duplicating hex values. */
+:root {
+	--surface-primary: #080808;
+	--surface-secondary: #151515;
+	--text-warm-white: #e8e2d4;
+	--text-archive: #d9d2c2;
+	--accent: #c9a227;
+
+	/* §26 motion. One scale, used everywhere, so every transition feels related. */
+	--ease-editorial: cubic-bezier(0.4, 0, 0.2, 1);
+	--duration-slow: 1200ms;
+	--duration-medium: 600ms;
+	--duration-quick: 280ms;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	background: var(--surface-primary);
+	color: var(--text-warm-white);
+	font-family: var(--font-grotesk), system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* The runway owns the viewport; nothing should scroll. */
+body {
+	overflow: hidden;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+/* §33: visible focus states, keyboard accessible throughout. */
+:focus-visible {
+	outline: 1px solid var(--text-warm-white);
+	outline-offset: 3px;
+}
+
+/* §33: reduced motion. The show still advances, but nothing eases or drifts. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

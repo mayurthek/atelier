@@ -9,9 +9,11 @@ produce a figure that looks subtly wrong.
 
 ```bash
 npm run anim:check     # 24 gait invariants across both figures
-npm run show:check     # 22 full-show sequence invariants
+npm run show:check     # 24 full-show sequence invariants
+npm run stage:check    # 60 runway and camera invariants
 npm run preview        # SVG contact sheet of the walk, both figures
-npm run check          # typecheck + both suites
+npm run anim:arms      # arm/shoulder silhouette inspector
+npm run check          # typecheck + all three suites
 ```
 
 ## Architecture
@@ -56,7 +58,7 @@ plausible in isolation; the head bobbed 2.4 m.
 
 ### 2. Six joints per arm, not two
 
-The Genesis arm runs shoulder → `upperarm01` → `upperarm02` → `lowerarm01` →
+the arm runs shoulder → `upperarm01` → `upperarm02` → `lowerarm01` →
 `lowerarm02` → wrist. Rotating only the upper arm swings one segment and leaves
 the forearm pointing outward: the wrist stayed at x=0.42, still nearly
 horizontal. **Every** joint in the chain must be rotated by the same angle, which
@@ -137,6 +139,41 @@ Two measurement notes worth keeping:
 
 `exit` is terminal — it holds rather than rolling back into itself, which would
 snap the figure from the idle pose to the turn pose once per cycle.
+
+### 6. Arm abduction — and the poses that forgot it
+
+Dropping the arms by exactly `restArmAngle` puts them dead vertical from a
+shoulder joint that sits **on** the body surface. The shoulder is at x≈0.10 m
+while the waist is 0.31 m wide, so a vertical arm passes straight through the
+torso: measured on the shipped figures, the elbow landed 5.6 cm inside the male
+and 7.2 cm inside the female, and the hand vanished into the hip.
+
+The fix is an outward angle, solved per figure rather than dialled in by hand —
+the female needs more than the male, because she has narrower shoulders and a
+wider ribcage:
+
+| Figure | restArmAngle | armAbduction |
+|---|---|---|
+| male | 88.86° | 12.03° |
+| female | 88.32° | 15.47° |
+
+The subtle half of this bug: **`idlePose`, `turnPose` and `entrancePose` each
+dropped the arms by `restArmAngle` and ignored the abduction entirely.** So the
+walk looked correct and the arms snapped inward the instant a model stopped at
+the end of a look — which is the one moment the viewer is looking straight at
+them. The gait suite never caught it, because it only samples the walk.
+
+All four pose functions now take the same abducted drop, and `show:check`
+asserts wrist clearance during the held poses so it cannot come back.
+
+## Verifying by eye
+
+`npm run anim:arms` rasterises the *skinned mesh* — not the skeleton — from the
+front, tinting arm-dominated vertices against the torso, and writes an SVG.
+Pass `--ascii` to print the silhouette as text, or `--abduction=N` to try a
+different angle. This is what made the problem legible: a flat silhouette with
+the arm tinted showed arm and torso as one continuous shape, where the joints
+alone looked fine.
 
 ## Not yet built
 
