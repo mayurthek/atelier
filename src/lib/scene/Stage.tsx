@@ -10,7 +10,7 @@ import { Figure, preloadFigures } from './Figure';
 import { CameraRig } from './camera';
 import { useAdaptivePerf, PERF_FOR_TIER } from './perf';
 import { bindShowKeys, useShowStore } from './store';
-import { ATMOSPHERE, PALETTE, RUNWAY } from './stage-config';
+import { ATMOSPHERE, CAMERA_POSES, PALETTE } from './stage-config';
 import type { WalkSettings } from '@/lib/anim/walk';
 
 /**
@@ -53,17 +53,25 @@ export function Stage({ settings }: { settings: WalkSettings }): React.ReactElem
 					if (perf.shadows) gl.shadowMap.type = PCFSoftShadowMap;
 					scene.background = null;
 				}}
-				camera={{ fov: 32, near: 0.1, far: 120, position: [0, RUNWAY.seatedEyeHeight, RUNWAY.audienceZ] }}
+				/* Starts in the front row, looking back up the runway — the FRONT
+				    view. Starting anywhere else means the first frame the viewer sees
+				    is not one of the product's composed views. */
+				camera={{
+					fov: CAMERA_POSES.FRONT.fov,
+					near: 0.1,
+					far: 120,
+					position: CAMERA_POSES.FRONT.position.toArray(),
+				}}
 			>
 				<PerfGovernor />
 				<Runway>
 					{/* §32: environment renders before the model, so the stage is
 					    visible while the 1.8 MB figure is still streaming. */}
 					<Suspense fallback={null}>
-						<Figure modelRef={modelRef} settings={settings} />
+						<Figure settings={settings} />
 					</Suspense>
 				</Runway>
-				<CameraRig modelRef={modelRef} />
+				<CameraRig />
 				<AdaptiveDpr />
 				<Preload all />
 			</Canvas>

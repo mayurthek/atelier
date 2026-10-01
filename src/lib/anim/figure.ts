@@ -44,6 +44,8 @@ export class FigureRig {
 	 * travel on +Z regardless of how the source file was exported.
 	 */
 	private readonly worldToParent = new Matrix3();
+	/** Scratch for `footPosition`, allocated once. */
+	private _otherFoot?: Vector3;
 	/** Root's bind-pose position, which is NOT zero — it places the rig on the origin. */
 	private rootBindPosition = new Vector3();
 
@@ -147,6 +149,34 @@ export class FigureRig {
 		const bone = this.byName.get(name);
 		if (!bone) throw new Error(`"${name}" is not an animated bone`);
 		return bone.getWorldPosition(into);
+	}
+
+	/**
+	 * World position of the figure's feet — the point on the floor under it.
+	 *
+	 * **Not** the rig root's origin. The root carries a bind offset that places
+	 * the body on the floor, so its origin sits well below the ground and partway
+	 * up the runway; anything treating it as "where the model is" is off by that
+	 * offset. The camera's following target aimed at the root, which put the aim
+	 * most of a metre high and tipped the camera up until the figure's feet left
+	 * the frame — the one crop this product cannot afford.
+	 *
+	 * Derived from the ankles: they are on the floor, and part of the animated set,
+	 * so this is correct at every pose without measuring the mesh.
+	 */
+	footPosition(into = new Vector3()): Vector3 {
+		const left = this.byName.get('foot_L');
+		const right = this.byName.get('foot_R');
+		if (!left || !right) {
+			// No ankles — fall back to the root rather than throwing, so a rig with
+			// different bone names degrades to slightly-off framing, not a crash.
+			return this.worldPositionOf('root', into);
+		}
+		left.getWorldPosition(into);
+		this._otherFoot ??= new Vector3();
+		right.getWorldPosition(this._otherFoot);
+		// Midpoint, so this is the figure's centre line rather than one leg.
+		return into.add(this._otherFoot).multiplyScalar(0.5);
 	}
 
 	/** Reset every animated bone and then apply `pose`. Convenience for loops. */

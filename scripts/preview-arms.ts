@@ -103,7 +103,7 @@ function rasterise(points: Point[], indices: ArrayLike<number>, panel: Panel, ar
 
 async function main(): Promise<void> {
 	const which = process.argv[2] === 'female' ? 'female' : 'male';
-	const poseName = process.argv[3] === 'walk' ? 'walk' : 'idle';
+	const poseName = process.argv[3] === 'walk' ? 'walk' : process.argv[3] === 'bind' ? 'bind' : 'idle';
 	const file = `public/models/${which}.glb`;
 	if (!existsSync(file)) {
 		console.error(`Missing ${file} — run "npm run assets:build" first.`);
@@ -124,10 +124,19 @@ async function main(): Promise<void> {
 	const scene = await loadModelForAnimation(file);
 	const rig = new FigureRig(scene, ANIMATED_BONES);
 
-	rig.apply(
-		poseName === 'walk' ? walkPose(0.25, settings) : idlePose(0, settings.restArmAngle, settings.armAbduction),
-		0,
-	);
+	// `bind` leaves the figure in its T-pose, which is the reference the shoulder
+	// should be compared against — if the posed silhouette is narrower than the
+	// bind one at shoulder height, the pose is pulling the deltoid inward.
+	if (poseName === 'bind') {
+		rig.reset();
+	} else {
+		rig.apply(
+			poseName === 'walk'
+				? walkPose(0.25, settings)
+				: idlePose(0, settings.restArmAngle, settings.armAbduction),
+			0,
+		);
+	}
 
 	// GPU-equivalent skinning, so the silhouette matches what renders.
 //
@@ -305,18 +314,15 @@ async function main(): Promise<void> {
 		`${which} · pose ${poseName} · restArm ${settings.restArmAngle.toFixed(2)}° · abduction ${settings.armAbduction.toFixed(2)}° · ${points.length} verts`,
 	);
 
-	// ASCII dump of the shoulder region. The SVG is the deliverable, but reading
-	// a silhouette as text is how the misalignment was actually diagnosed.
+	// ASCII dump of a region. The SVG is the deliverable, but reading a silhouette
+	// as text is how the misalignment was actually diagnosed.
 	if (process.argv.includes('--ascii')) {
-		const panel: Panel = {
-			title: 'ascii',
-			minX: -0.4,
-			maxX: 0.4,
-			minY: 0.72,
-			maxY: 1.5,
-			cols: 78,
-			rows: 34,
-		};
+		// `--zoom=shoulder` isolates the shoulder assembly; the default covers the
+		// whole arm.
+		const zoomShoulder = process.argv.includes('--zoom=shoulder');
+		const panel: Panel = zoomShoulder
+			? { title: 'ascii', minX: -0.34, maxX: 0.34, minY: 1.2, maxY: 1.55, cols: 96, rows: 40 }
+			: { title: 'ascii', minX: -0.4, maxX: 0.4, minY: 0.72, maxY: 1.5, cols: 78, rows: 34 };
 		const body = rasterise(points, index.array, panel, false);
 		const arm = rasterise(points, index.array, panel, true);
 		console.log('\nshoulder + arm, front view   (o = arm over torso, # = torso only)');

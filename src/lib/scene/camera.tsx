@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Vector3 } from 'three';
-import type { Group, Camera } from 'three';
-import { useShowStore, type CameraState } from './store';
+import type { Camera } from 'three';
+import { modelFeet, useShowStore, type CameraState } from './store';
 import { CAMERA_POSES, MOTION, easeInOut, type CameraPose } from './stage-config';
 
 /**
@@ -44,7 +44,6 @@ function makeResolved(fov: number): Resolved {
 }
 
 // Scratch, allocated once — this runs every frame.
-const sModel = new Vector3();
 const sOut = new Vector3();
 const sDir = new Vector3();
 
@@ -56,13 +55,17 @@ const sDir = new Vector3();
  * a single flag makes the camera travel with the walk, which §17 explicitly
  * forbids for that state.
  */
-function resolveInto(pose: CameraPose, model: Group | null, out: Resolved): Resolved {
+function resolveInto(pose: CameraPose, out: Resolved): Resolved {
 	out.position.copy(pose.position);
 	out.target.copy(pose.target);
-	if (model && (pose.positionFollowsModel || pose.targetFollowsModel)) {
-		model.getWorldPosition(sModel);
-		if (pose.positionFollowsModel) out.position.add(sModel);
-		if (pose.targetFollowsModel) out.target.add(sModel);
+	if (pose.positionFollowsModel || pose.targetFollowsModel) {
+		// The model's *feet*, not its group origin. The rig root carries a bind
+		// offset that places the body on the floor, so the group origin sits well
+		// below the ground and partway back down the runway. Adding that to the aim
+		// put the target most of a metre high and tipped the camera upward until
+		// the figure's feet left the bottom of the frame.
+		if (pose.positionFollowsModel) out.position.add(modelFeet);
+		if (pose.targetFollowsModel) out.target.add(modelFeet);
 	}
 	out.fov = pose.fov;
 	return out;
@@ -74,22 +77,22 @@ function currentLookAt(camera: Camera, out: Vector3): Vector3 {
 	return out.copy(sDir).multiplyScalar(-12).add(camera.position);
 }
 
-export function CameraRig({ modelRef }: { modelRef: React.RefObject<Group | null> }): React.ReactElement {
+export function CameraRig(): React.ReactElement {
 	const { camera } = useThree();
 	const cameraState = useShowStore((s) => s.cameraState);
 	const phase = useShowStore((s) => s.phase);
 
 	const rig = useRef<RigState>({
-		from: makeResolved(CAMERA_POSES.AUDIENCE.fov),
-		to: CAMERA_POSES.AUDIENCE,
+		from: makeResolved(CAMERA_POSES.FRONT.fov),
+		to: CAMERA_POSES.FRONT,
 		t: 1,
 		duration: MOTION.cameraTransition,
 	});
-	const fov = useRef(CAMERA_POSES.AUDIENCE.fov);
+	const fov = useRef(CAMERA_POSES.FRONT.fov);
 	const scratch = useRef<Resolved>(makeResolved(32));
 
 	useEffect(() => {
-		const next = CAMERA_POSES[cameraState] ?? CAMERA_POSES.AUDIENCE;
+		const next = CAMERA_POSES[cameraState] ?? CAMERA_POSES.FRONT;
 		const s = rig.current;
 
 		// Freeze where the camera actually is right now, mid-blend or not.
@@ -106,13 +109,12 @@ export function CameraRig({ modelRef }: { modelRef: React.RefObject<Group | null
 	useFrame((_, delta) => {
 		const s = rig.current;
 		const dt = Math.min(delta, 0.1);
-		const model = modelRef.current;
 
 		if (s.t < 1) s.t = Math.min(1, s.t + dt / s.duration);
 		const eased = easeInOut(s.t);
 
 		// `from` is already world space and frozen; `to` follows the model.
-		sOut.lerpVectors(s.from.position, resolveInto(s.to, model, scratch.current).position, eased);
+		sOut.lerpVectors(s.from.position, resolveInto(s.to, scratch.current).position, eased);
 		camera.position.copy(sOut);
 
 		sOut.lerpVectors(s.from.target, scratch.current.target, eased);
@@ -141,9 +143,14 @@ export function CameraRig({ modelRef }: { modelRef: React.RefObject<Group | null
 	return <></>;
 }
 
-/** The six states, for the debug overlay and keyboard cycling. */
+/**
+ * The states, in cycling order. The first two are the two composed views —
+ * FRONT is the head-on walk, SPECTATOR is the seat on the side of the ramp — and
+ * the rest are the §17 states that hang off them.
+ */
 export const CAMERA_STATE_ORDER: CameraState[] = [
-	'AUDIENCE',
+	'FRONT',
+	'SPECTATOR',
 	'TRACK',
 	'MODEL',
 	'INSPECT',

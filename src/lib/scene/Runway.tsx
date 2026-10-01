@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { InstancedMesh } from 'three';
-import { Object3D } from 'three';
+import { Object3D, Vector3 } from 'three';
 import { ATMOSPHERE, LIGHTING, PALETTE, RUNWAY } from './stage-config';
 
 /**
@@ -184,47 +184,67 @@ function Crowd(): React.ReactElement {
 	const bodies = useRef<InstancedMesh>(null);
 	const heads = useRef<InstancedMesh>(null);
 	const cameras = useRef<InstancedMesh>(null);
+	const seats = useRef<InstancedMesh>(null);
+	const backs = useRef<InstancedMesh>(null);
 
 	const plan = useMemo(() => planSeating(RUNWAY.perRow), []);
 	const dummy = useMemo(() => new Object3D(), []);
+	const offset = useMemo(() => new Vector3(), []);
+	const UP = useMemo(() => new Vector3(0, 1, 0), []);
+
+	/**
+	 * Place one instance, with an optional local offset rotated by the seat's yaw.
+	 *
+	 * The chairs need this: a backrest belongs *behind* whoever is sitting in it,
+	 * and "behind" is whatever direction that seat faces.
+	 */
+	const place = (
+		mesh: React.RefObject<InstancedMesh | null>,
+		i: number,
+		s: AudienceSeat,
+		scale: number,
+		local: [number, number, number],
+	): void => {
+		if (!mesh.current) return;
+		offset.set(local[0], local[1], local[2]).applyAxisAngle(UP, s.yaw).multiplyScalar(scale);
+		dummy.position.set(s.x + offset.x, s.y + offset.y, s.z + offset.z);
+		dummy.rotation.set(0, s.yaw, 0);
+		dummy.scale.setScalar(scale);
+		dummy.updateMatrix();
+		mesh.current.setMatrixAt(i, dummy.matrix);
+	};
+
+	const commit = (mesh: React.RefObject<InstancedMesh | null>): void => {
+		if (!mesh.current) return;
+		mesh.current.instanceMatrix.needsUpdate = true;
+		mesh.current.computeBoundingSphere();
+	};
 
 	// Write instance matrices once, after the meshes exist. Doing this during
 	// render would race the ref assignment.
 	useLayoutEffect(() => {
-		if (bodies.current) {
-			plan.audience.forEach((s, i) => {
-				dummy.position.set(s.x, s.y + 0.43 * s.scale, s.z);
-				dummy.rotation.set(0, s.yaw, 0);
-				dummy.scale.setScalar(s.scale);
-				dummy.updateMatrix();
-				bodies.current?.setMatrixAt(i, dummy.matrix);
-			});
-			bodies.current.instanceMatrix.needsUpdate = true;
-			bodies.current.computeBoundingSphere();
-		}
-		if (heads.current) {
-			plan.audience.forEach((s, i) => {
-				dummy.position.set(s.x, s.y + 0.95 * s.scale, s.z);
-				dummy.rotation.set(0, s.yaw, 0);
-				dummy.scale.setScalar(s.scale);
-				dummy.updateMatrix();
-				heads.current?.setMatrixAt(i, dummy.matrix);
-			});
-			heads.current.instanceMatrix.needsUpdate = true;
-			heads.current.computeBoundingSphere();
-		}
-		if (cameras.current) {
-			plan.photographers.forEach((s, i) => {
-				dummy.position.set(s.x, s.y, s.z);
-				dummy.rotation.set(0, s.yaw, 0);
-				dummy.scale.setScalar(1);
-				dummy.updateMatrix();
-				cameras.current?.setMatrixAt(i, dummy.matrix);
-			});
-			cameras.current.instanceMatrix.needsUpdate = true;
-			cameras.current.computeBoundingSphere();
-		}
-	}, [plan, dummy]);
+		plan.audience.forEach((s, i) => {
+			place(bodies, i, s, s.scale, [0, 0.43, 0]);
+			place(heads, i, s, s.scale, [0, 0.95, 0]);
+			// Chair: a seat pad under the figure and a backrest behind it.
+			place(seats, i, s, s.scale, [0, 0.4, 0]);
+			place(backs, i, s, s.scale, [0, 0.63, -0.19]);
+		});
+		commit(bodies);
+		commit(heads);
+		commit(seats);
+		commit(backs);
+
+		plan.photographers.forEach((s, i) => {
+			if (!cameras.current) return;
+			dummy.position.set(s.x, s.y, s.z);
+			dummy.rotation.set(0, s.yaw, 0);
+			dummy.scale.setScalar(1);
+			dummy.updateMatrix();
+			cameras.current.setMatrixAt(i, dummy.matrix);
+		});
+		commit(cameras);
+	}, [plan, dummy, offset, UP]);
 
 	useFrame(({ clock }) => {
 		// §12 asks for "subtle environmental movement". A slow drift keeps the
@@ -264,6 +284,26 @@ function Crowd(): React.ReactElement {
 			>
 				<boxGeometry args={[0.17, 0.13, 0.24]} />
 				<meshStandardMaterial color="#0d0d10" roughness={0.9} metalness={0.1} />
+			</instancedMesh>
+
+			{/* Chairs. Without these the SPECTATOR view looks out over a field of
+			    floating torsos, which is worse than no audience at all — the whole
+			    point of the side view is that the user is *in* a row of seats. */}
+			<instancedMesh
+				ref={seats}
+				args={[undefined, undefined, plan.audience.length]}
+				frustumCulled={false}
+			>
+				<boxGeometry args={[0.44, 0.055, 0.42]} />
+				<meshStandardMaterial color="#0c0c0f" roughness={0.94} metalness={0.04} />
+			</instancedMesh>
+			<instancedMesh
+				ref={backs}
+				args={[undefined, undefined, plan.audience.length]}
+				frustumCulled={false}
+			>
+				<boxGeometry args={[0.44, 0.46, 0.055]} />
+				<meshStandardMaterial color="#0c0c0f" roughness={0.94} metalness={0.04} />
 			</instancedMesh>
 		</group>
 	);

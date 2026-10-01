@@ -16,7 +16,7 @@ procedural garment pipeline and a procedurally animated walk cycle.
 |---|---|---|
 | 1 | Asset pipeline | Done — 18/18 rig checks, 13.6 MB → 1.78 MB |
 | 2 | Procedural animation | Done — 46/46 checks across both figures |
-| 3 | Runway stage & camera | Not started |
+| 3 | Runway stage & camera | Done — 74 stage invariants, two composed views |
 | 4 | Garment generator | Not started |
 | 5 | Inspection & THEN/NOW | Not started |
 | 6 | Lookbook, archive, polish | Not started |
@@ -43,8 +43,14 @@ asset pipeline additionally needs the raw source figures in `assets-src/` — se
 | `npm run assets:build` | convert `assets-src/` → `public/models/`, emit metrics |
 | `npm run assets:check` | inspect any GLB's rig, meshes and textures |
 | `npm run anim:check` | 24 gait invariants, both figures |
-| `npm run show:check` | 22 full-show sequence invariants |
+| `npm run show:check` | 24 full-show sequence invariants |
+| `npm run stage:check` | 74 runway and camera invariants |
 | `npm run preview` | gait contact sheets |
+| `npm run anim:arms` | arm/shoulder silhouette inspector |
+| `npm run anim:view -- male walk --view=FRONT` | render what a camera state frames |
+
+Press <kbd>C</kbd> to cycle the camera, <kbd>I</kbd> to inspect, <kbd>space</kbd>
+to pause.
 
 ## How it works
 
@@ -72,6 +78,33 @@ pose discontinuity — but the feel is tuned by eye in the viewport, and
 
 → [docs/ANIMATION.md](docs/ANIMATION.md)
 
+### Stage and camera
+
+The model walks along **+Z** and faces **+Z**. That single fact decides everything
+about the camera, and getting it wrong once cost a whole phase: the primary view
+was seated at the near end of the runway, so the product showed the walk *from
+behind*.
+
+There are two composed views, both seats in the audience:
+
+- **Front** — front row at the far end, on the centreline. The model walks toward
+  the lens.
+- **Spectator** — front row to one side of the ramp. First-person, from the
+  chair, as the model walks down the ramp and past in profile.
+
+Every camera position is a fixed seat. Only `INSPECT` and `MACRO` travel, because
+the brief gives exactly those two a camera that "moves toward" the garment.
+
+Both views keep the whole figure in shot at every point on the walk, asserted
+against the real GLBs rather than judged by eye. That check caught two things a
+screenshot would not have: the seated cameras were aimed at chest height, so the
+figure grew downward out of frame as it approached; and every following target was
+anchored to the rig root, which carries a bind offset that places the body on the
+floor, putting the aim most of a metre high.
+
+→ [docs/PRD.md](docs/PRD.md) — the authoritative view contract. Read it before
+changing a camera state.
+
 ## Layout
 
 ```
@@ -86,7 +119,10 @@ src/lib/anim/          animation layer
   clip.ts              idle / turn / entrance poses
   figure.ts            applies a pose to a skeleton
   show.ts              ShowDirector, owns the clock
-docs/                  asset and animation notes
+docs/
+  PRD.md                staging and camera contract — authoritative
+  ASSETS.md             asset pipeline notes
+  ANIMATION.md          gait, poses, and their traps
 ```
 
 ## Principles
@@ -94,7 +130,8 @@ docs/                  asset and animation notes
 From the product requirements, and the constraints this implementation follows:
 
 1. **Fashion is the interface** — UI never overpowers the garments.
-2. **The user is a spectator** — no free-fly camera; the rig stays seated.
+2. **The user is a spectator** — no free-fly camera; every state is a seat someone
+   could be sitting in.
 3. **Archive before decoration** — every reconstruction carries provenance.
 4. **Motion has meaning** — every transition is spatial or narrative.
 5. **Reconstruction, not imitation** — garments are real geometry, never a

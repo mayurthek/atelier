@@ -9,7 +9,7 @@ import { FigureRig } from '@/lib/anim/figure';
 import { ANIMATED_BONES } from '@/lib/anim/frames';
 import { ShowDirector, DEFAULT_CONFIG } from '@/lib/anim/show';
 import type { WalkSettings } from '@/lib/anim/walk';
-import { useShowStore } from './store';
+import { modelFeet, useShowStore } from './store';
 
 /**
  * The model on the runway.
@@ -28,10 +28,8 @@ const MODEL_URLS = {
 } as const;
 
 export function Figure({
-	modelRef,
 	settings,
 }: {
-	modelRef: React.RefObject<Group | null>;
 	/** Per-figure walk settings, including the measured bind-pose arm angle. */
 	settings: WalkSettings;
 }): React.ReactElement {
@@ -78,13 +76,17 @@ export function Figure({
 			const { pose, state } = director.update(0);
 			rig.apply(pose, state.travel);
 		}
+
+		// Publish where the model is for the camera rig to aim at. Written after
+		// the pose is applied, and read in the same frame's camera pass.
+		modelFeet.copy(rig.footPosition());
 	});
 
-	return (
-		<group ref={modelRef}>
-			<primitive object={gltf.scene} />
-		</group>
-	);
+	// No wrapping group with a ref: the camera used to read this group's world
+	// position to know where the model was, and that origin sits below the floor
+	// because the rig root carries a bind offset. The figure now publishes its own
+	// foot position instead (see `modelFeet`).
+	return <primitive object={gltf.scene} />;
 }
 
 /** Preload both figures so switching looks does not stall (§32). */

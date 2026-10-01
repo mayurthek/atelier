@@ -69,15 +69,32 @@ async function checkFigure(id: string, file: string): Promise<Check[]> {
 		`height ${bindBox.max.y.toFixed(3)} m, sole ${bindBox.min.y.toFixed(3)} m`,
 	);
 
-	// Drive a full cycle, tracking foot heights and world travel.
-	// Use each figure's own measured bind-pose arm angle. Hardcoding 90 here
-	// would be an A-pose assumption, and both figures ship in a T-pose.
+	// Shoulder girdle anchor. Lowering the arm must not move the acromion or the
+	// humerus head: they are the shoulder, and the arm hangs *from* them. This is
+	// a regression guard for a defect that survived two rounds of checks because
+	// every existing invariant looked at the wrist, the feet or the head — never at
+	// the shoulder. Rotating the chain from the acromion instead of the humerus
+	// head swung the deltoid down and inward with the arm, collapsing a third of
+	// the shoulder's breadth and leaving the arms looking as though they grew out
+	// of the neck, while the wrist-based checks all still passed.
+	const shoulderAnchors = ['clavicle_L', 'shoulder01_L', 'upperarm01_L'] as const;
+	const bindAnchors = shoulderAnchors.map((bone) => rig.worldPositionOf(bone).clone());
+
 	const metrics = JSON.parse(await readFile('content/figure-metrics.json', 'utf8')) as Record<
 		string,
-		{ restArmAngleDeg: number }
+		{ restArmAngleDeg: number; armAbductionDeg: number }
 	>;
-	const settings: WalkSettings = { ...RUNWAY_WALK, restArmAngle: metrics[id]!.restArmAngleDeg };
-	console.log(`  rest arm angle ${settings.restArmAngle.toFixed(2)} deg`);
+	const settings: WalkSettings = {
+		...RUNWAY_WALK,
+		restArmAngle: metrics[id]!.restArmAngleDeg,
+		// The figure's own solved angle, not the library default — the suite should
+		// exercise the configuration that actually ships.
+		armAbduction: metrics[id]!.armAbductionDeg,
+	};
+	console.log(
+		`  rest arm angle ${settings.restArmAngle.toFixed(2)} deg, ` +
+			`abduction ${settings.armAbduction.toFixed(2)} deg`,
+	);
 	const samples: {
 		toeL: number;
 		toeR: number;

@@ -2,6 +2,24 @@
 
 import { create } from 'zustand';
 
+import { Vector3 } from 'three';
+
+/**
+ * Where the model's feet are, in world space. Written every frame by `Figure`,
+ * read by the camera rig.
+ *
+ * Deliberately a plain mutable vector rather than store state: it changes on every
+ * frame of the walk, and routing that through `set()` would re-render the whole HUD
+ * 60 times a second for a value no component displays. Nothing in the React tree
+ * depends on it — only `useFrame` does.
+ *
+ * It must be the feet, not the group origin. The rig root carries a bind offset
+ * that places the body on the floor, so the group's origin sits below the ground
+ * and partway back down the runway; aiming the camera at that put the target most
+ * of a metre high and tipped the view up until the figure's feet left the frame.
+ */
+export const modelFeet = new Vector3();
+
 /**
  * Single source of truth for the runway scene.
  *
@@ -14,8 +32,20 @@ import { create } from 'zustand';
  * headlessly in Node, so it must never import React.
  */
 
-/** §17 camera states. The user is a spectator, not a player. */
-export type CameraState = 'AUDIENCE' | 'TRACK' | 'MODEL' | 'INSPECT' | 'MACRO' | 'ARCHIVE';
+/**
+ * §17 camera states. The user is a spectator, not a player.
+ *
+ * `FRONT` and `SPECTATOR` are the two composed views: the head-on walk, and the
+ * seat on one side of the ramp. The rest are §17 states hanging off them.
+ */
+export type CameraState =
+	| 'FRONT'
+	| 'SPECTATOR'
+	| 'TRACK'
+	| 'MODEL'
+	| 'INSPECT'
+	| 'MACRO'
+	| 'ARCHIVE';
 
 /** §16 look beats, mirrored from the animation layer so the UI can label them. */
 export type LookPhase = 'entrance' | 'walk' | 'pose' | 'turn' | 'exit';
@@ -72,7 +102,7 @@ export const useShowStore = create<ShowState>((set, get) => ({
 	totalLooks: 6,
 	phase: 'entrance',
 	playing: true,
-	cameraState: 'AUDIENCE',
+	cameraState: 'FRONT',
 	travel: 0,
 	gaitPhase: 0,
 	inspecting: false,
@@ -95,7 +125,7 @@ export const useShowStore = create<ShowState>((set, get) => ({
 	setCameraState: (cameraState) => set({ cameraState }),
 	setProgress: (travel, gaitPhase) => set({ travel, gaitPhase }),
 	setInspecting: (inspecting) =>
-		set({ inspecting, cameraState: inspecting ? 'INSPECT' : 'AUDIENCE' }),
+		set({ inspecting, cameraState: inspecting ? 'INSPECT' : 'FRONT' }),
 	setPerfTier: (perfTier) => set({ perfTier }),
 	setReady: (ready) => set({ ready }),
 }));

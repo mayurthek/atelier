@@ -13,6 +13,7 @@
     "check": "npm run typecheck && npm run anim:check && npm run show:check && npm run stage:check",
     "anim:preview": "tsx scripts/preview-gait.ts",
     "anim:arms": "tsx scripts/preview-arms.ts",
+    "anim:view": "tsx scripts/preview-view.ts",
     "preview": "tsx scripts/preview-gait.ts male && tsx scripts/preview-gait.ts female",
     "typecheck": "tsc --noEmit",
     "dev": "next dev",

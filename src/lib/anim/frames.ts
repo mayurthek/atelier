@@ -157,17 +157,26 @@ export const ARM_BONES = {
 } as const satisfies Record<string, string>;
 
 /**
- * Joints from shoulder to wrist, per side.
+ * Joints from humerus head to wrist, per side.
  *
- * the arm chain has six joints between clavicle and wrist, not two.
- * Lowering the arms requires rotating *every* joint in the chain by the same
- * amount: each joint's bind rotation is relative to its parent, so rotating one
- * joint swings only that segment and leaves the forearm pointing outward.
- * Rotating the whole chain uniformly treats the arm as a rigid unit pivoting at
- * the shoulder, which is what a T-pose to arms-down change actually is.
+ * The chain has six joints between clavicle and wrist, not two. Lowering the arms
+ * requires rotating *every* joint in the chain by the same amount: each joint's
+ * bind rotation is relative to its parent, so rotating one joint swings only that
+ * segment and leaves the forearm pointing outward. Rotating the whole chain
+ * uniformly treats the arm as a rigid unit, which is what a T-pose to arms-down
+ * change actually is.
+ *
+ * The chain deliberately starts at `upperarm01` — the humerus head — and not at
+ * `shoulder01`, which is the acromion on the outer end of the clavicle. Those two
+ * joints are 8.6 cm apart on the male figure and 7.5 cm on the female, and that
+ * gap is the whole shoulder. Pivoting at the acromion swings the deltoid down and
+ * inward with the arm, costing roughly 53% of the shoulder's breadth and leaving
+ * the arms reading as though they grew out of the neck. Pivoting at the humerus
+ * head leaves `clavicle` and `shoulder01` at bind, so the deltoid stays draped
+ * over the shoulder while the arm swings down from it — which is also where a
+ * humerus head actually sits, lateral to the acromion.
  */
 export const ARM_CHAIN_L: readonly string[] = [
-	ARM_BONES.shoulderL,
 	ARM_BONES.upperArmL,
 	ARM_BONES.upperArmMidL,
 	ARM_BONES.forearmL,
@@ -176,7 +185,6 @@ export const ARM_CHAIN_L: readonly string[] = [
 ];
 
 export const ARM_CHAIN_R: readonly string[] = [
-	ARM_BONES.shoulderR,
 	ARM_BONES.upperArmR,
 	ARM_BONES.upperArmMidR,
 	ARM_BONES.forearmR,

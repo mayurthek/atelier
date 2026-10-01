@@ -418,11 +418,20 @@ export function measureFigure(document: Document, source: string): FigureMetrics
 	/**
  * Minimum arm abduction for the hand to clear the body.
  *
- * The shoulder joint sits at roughly x=0.10 m, but the torso is up to 0.31 m
- * wide at the waist. An arm dropped to *exactly* vertical therefore hangs
- * straight through the body: measured on the shipped figures, the elbow landed
- * 5.6 cm inside the male torso and 7.2 cm inside the female's, so the forearm and
- * hand vanished into the silhouette and only the shoulder read.
+ * The arm pivots at `upperarm01` — the humerus head — which sits 8.6 cm
+ * lateral of the acromion on the male figure and 7.5 cm on the female. That
+ * offset is most of the clearance problem: an arm dropped to exactly vertical
+ * from there already clears the waist, and only a couple of degrees are needed
+ * to open a visible gap at the forearm.
+ *
+ * (When this pivoted at `shoulder01` instead, the same calculation demanded
+ * 12–15°, and the deltoid was swung down and inward along with the arm — the
+ * shoulders lost a third of their breadth and the arms read as though they grew
+ * out of the neck. The pivot and the angle have to be fixed together.)
+ *
+ * Margins are measured to the *skin*, not the joint axis, so the limb's own
+ * radius is added to the target. Without that the solver clears the axis by a
+ * hand's width and the mesh still overlaps.
  *
  * Real arms hang slightly outboard for exactly this reason. The angle is solved
  * rather than dialled in by hand, because it depends on proportions that differ
@@ -436,25 +445,28 @@ export function measureFigure(document: Document, source: string): FigureMetrics
 function solveArmAbduction(
 	regions: Record<BodyRegionName, RegionSlice[]>,
 	landmarks: Record<string, Vec3>,
-	upperArmLength: number,
+	humerusLength: number,
 ): number {
 	/**
 	 * Clearance wanted between the hand and the body, in metres. Generous: a
 	 * hand tucked against the hip reads as a mitten in the body's own silhouette.
 	 */
-	const HAND_MARGIN = 0.045;
+	const HAND_MARGIN = 0.03;
 	/**
 	 * Clearance wanted at the elbow. Much smaller on purpose — the upper arm
 	 * resting against the ribcage is anatomy, and demanding a hand-sized gap
 	 * there produces a chicken-wing. Enough that the elbow reads as its own form
 	 * rather than dissolving into the torso.
 	 */
-	const ELBOW_MARGIN = 0.02;
+	const ELBOW_MARGIN = 0.012;
+	/** Limb radius, so the target is cleared skin rather than joint axis. */
+	const UPPER_ARM_RADIUS = 0.045;
+	const HAND_RADIUS = 0.032;
 
-	const shoulder = landmarks['shoulder01_L'];
-	if (!shoulder || !(upperArmLength > 0)) return 8;
-	const [shoulderX, shoulderY] = shoulder;
-	const originX = Math.abs(shoulderX);
+	const pivot = landmarks['upperarm01_L'];
+	if (!pivot || !(humerusLength > 0)) return 0;
+	const [pivotX, pivotY] = pivot;
+	const originX = Math.abs(pivotX);
 
 	// Torso half-width at a given height, or 0 below the measured range.
 	const halfWidthAt = (t: number): number => {
@@ -466,38 +478,38 @@ function solveArmAbduction(
 	};
 
 	// A point at distance d along the arm sits at x = originX + d*sin(a) and
-	// y = shoulderY - d*cos(a), so clearing a slice at height t needs
-	// tan(a) > (halfWidth + margin - originX) / (shoulderY - t).
+	// y = pivotY - d*cos(a), so clearing a slice at height t needs
+	// tan(a) > (halfWidth + margin + radius - originX) / (pivotY - t).
 	//
 	// The elbow's own height depends on the angle, so both constraints are
 	// re-evaluated each pass until they settle.
 	let tan = 0;
 	for (let pass = 0; pass < 4; pass++) {
 		const angle = Math.atan(tan);
-		const elbowY = shoulderY - upperArmLength * Math.cos(angle);
-		const elbowX = originX + upperArmLength * Math.sin(angle);
+		const elbowY = pivotY - humerusLength * Math.cos(angle);
+		const elbowX = originX + humerusLength * Math.sin(angle);
 
 		// Elbow clears its own height.
-		const elbowNeed = halfWidthAt(elbowY) + ELBOW_MARGIN - elbowX;
+		const elbowNeed = halfWidthAt(elbowY) + ELBOW_MARGIN + UPPER_ARM_RADIUS - elbowX;
 		if (elbowNeed > 0) {
 			// Widening the elbow means widening every point below it, so fold the
 			// shortfall into tan via the elbow's own leverage arm.
-			tan += elbowNeed / Math.max(0.05, upperArmLength);
+			tan += elbowNeed / Math.max(0.05, humerusLength);
 		}
 
 		// Forearm and hand clear everything below the elbow.
 		for (const slice of regions.torso) {
 			if (slice.t > elbowY || slice.t < 0.2) continue;
-			const need = slice.width / 2 + HAND_MARGIN - originX;
-			const drop = shoulderY - slice.t;
+			const need = slice.width / 2 + HAND_MARGIN + HAND_RADIUS - originX;
+			const drop = pivotY - slice.t;
 			if (drop <= 1e-3) continue;
 			tan = Math.max(tan, need / drop);
 		}
 	}
 
 	const degrees = (Math.atan(Math.max(0, tan)) * 180) / Math.PI;
-	// Clamped: below 4 the arm grazes the hip, above 22 it reads as a puppet.
-	return Math.round(Math.min(22, Math.max(4, degrees)) * 100) / 100;
+	// Clamped: below -2 the hand drives into the hip, above 10 reads as a puppet.
+	return Math.round(Math.min(10, Math.max(-2, degrees)) * 100) / 100;
 }
 
 // Left/right rig symmetry. Only X is mirrored across the body; Y and Z should
@@ -560,7 +572,9 @@ function solveArmAbduction(
 		armAbductionDeg: solveArmAbduction(
 			regions,
 			landmarks,
-			seg('shoulder01_L', 'lowerarm01_L'),
+			// Humerus length: the pivot is the humerus head, so the first segment
+			// runs from there to the elbow — not from the acromion.
+			seg('upperarm01_L', 'lowerarm01_L'),
 		),
 		maxAsymmetry: round(maxAsymmetry),
 		restPoseQuaternions,

@@ -19,10 +19,31 @@ export const RUNWAY = {
 	perRow: 14,
 	/** camera height — seated eye level, per §17 AUDIENCE */
 	seatedEyeHeight: 1.18,
-	/** where the audience camera sits, at the near end */
-	audienceZ: -1.2,
+	/**
+	 * Z of the front row, beyond the far end of the catwalk.
+	 *
+	 * The model walks along **+Z**, so a seat at the *start* of the runway shows its
+	 * back. The front row has to be at the far end, looking back up the ramp, or
+	 * the walk is presented from behind.
+	 */
+	frontRowZ: 16.8,
 	/** Z at which the model stops and turns */
 	markZ: 13.2,
+	/**
+	 * The side seat: a front-row chair on the right-hand side of the ramp.
+	 *
+	 * First-person, from the row, not a floating camera — the user is a spectator
+	 * in a seat watching someone walk past.
+	 *
+	 * `z` is late in the runway on purpose. Blends are straight lines between
+	 * seats, and a side seat near the middle produced a chord that cut the near
+	 * corner of the catwalk — the camera gliding over the runway edge, which is
+	 * exactly the drone move product principle 02 rules out. From here the chord
+	 * to the front row clears the runway without needing an exemption, and the
+	 * spectator still sees the whole approach before the model passes close by.
+	 */
+	spectatorX: 4.2,
+	spectatorZ: 10.8,
 } as const;
 
 /** §25 palette. Charcoal environment, warm white type, one restrained accent. */
@@ -70,13 +91,8 @@ export const ATMOSPHERE = {
  * the room or an offset from the model. They cannot be one flag, because the
  * states split three ways:
  *
- * - AUDIENCE   fixed seat, fixed target. Sits and watches the model come to it.
- * - MODEL      *same* fixed seat, but a following target — §17 says "camera
- *              remains stationary while the model approaches", so only the aim
- *              tracks. Collapsing these into one flag made MODEL's position track
- *              too, which is precisely the spectator violation §17 forbids.
- * - TRACK      fixed seat with a slight drift, following target. The camera stays
- *              put; the gaze follows.
+ * - FRONT / TRACK / MODEL / SPECTATOR
+ *              fixed seat, following aim. The camera does not move; the gaze does.
  * - INSPECT    following position *and* target — this one does travel.
  * - MACRO      following position and target.
  * - ARCHIVE    fixed position, fixed target. Leaving the room behind.
@@ -95,50 +111,108 @@ export interface CameraPose {
 }
 
 const MODEL_HEIGHT = 1.63;
-/** roughly chest height on the figure */
-const MODEL_CHEST = MODEL_HEIGHT * 0.72;
 
+/**
+ * Where the seated cameras aim, as a fraction of the figure's own height.
+ *
+ * Not chest height. A seated camera at 1.18 m aiming at a chest 1.17 m up is
+ * aiming almost horizontally, so as the model walks toward it the figure grows
+ * downward out of the bottom of the frame — measured, the feet left the frame
+ * entirely from about 11 m out, and by the mark a third of the figure was gone.
+ * The framing was cropping the garment, which is the one thing this product
+ * cannot afford to do.
+ *
+ * 0.55 keeps the whole figure in shot at every point on the walk, from 17 m to
+ * the mark at 3.7 m, and still leaves headroom.
+ */
+const MODEL_MID = MODEL_HEIGHT * 0.55;
+
+/**
+ * The two views the product is composed around, plus the §17 states that hang off
+ * them. Every camera position here is a **seat** — a fixed place in the room that
+ * someone could be sitting in. The camera never travels with the model except for
+ * INSPECT and MACRO, which §17 explicitly gives a dolly.
+ *
+ * Which way is "front" matters more than it sounds. The model walks along **+Z**
+ * and faces +Z, so a camera at the near end of the ramp sees its back. A view
+ * named for the audience that sits at the *start* of the runway therefore shows
+ * the walk from behind, which is not a front view at all. The front row is at the
+ * *far* end, looking back up the ramp.
+ */
 export const CAMERA_POSES = {
 	/**
-	 * AUDIENCE — §17: "Stationary, human eye level." A person sitting at the end
-	 * of the runway. It does not move for the walk; the model comes to it. This
-	 * is the state that enforces product principle 02.
+	 * FRONT — the primary view. Seated in the front row at the far end of the
+	 * runway, the model walking toward the lens: the shot the walk is composed for.
 	 *
-	 * Position is on the centreline but *behind* the runway end (z < 0), so it is
-	 * not standing on the catwalk — it is in the front row.
+	 * Position is a fixed seat. The *aim* follows, because a spectator's eyes track
+	 * an approaching model — the camera does not move, but it does not stare at the
+	 * far wall either.
 	 */
-	AUDIENCE: {
-		position: new Vector3(0, RUNWAY.seatedEyeHeight, RUNWAY.audienceZ),
-		target: new Vector3(0, MODEL_CHEST, RUNWAY.markZ * 0.6),
-		positionFollowsModel: false,
-		targetFollowsModel: false,
-		fov: 32,
-	},
-	/**
-	 * TRACK — "Subtle focus tracking." The camera stays seated and only the gaze
-	 * follows the model, which reads as a spectator watching with their eyes
-	 * rather than a tripod panning.
-	 */
-	TRACK: {
-		position: new Vector3(0.35, RUNWAY.seatedEyeHeight + 0.06, RUNWAY.audienceZ),
-		target: new Vector3(0, MODEL_CHEST, 0),
+	FRONT: {
+		position: new Vector3(0, RUNWAY.seatedEyeHeight, RUNWAY.frontRowZ),
+		target: new Vector3(0, MODEL_MID, 0),
 		positionFollowsModel: false,
 		targetFollowsModel: true,
-		fov: 30,
+		// 36°, chosen against measured framing rather than by taste: at 32° the
+		// figure filled 80% of frame height at the mark, which is a portrait
+		// crop with the garment pressed against the edges. This keeps the whole
+		// figure in shot at every point on the walk, and still fills 71% at the
+		// mark — a runway full-length shot, not a close-up.
+		fov: 36,
+	},
+	/**
+	 * SPECTATOR — first-person from a seat on one side of the ramp.
+	 *
+	 * The user is *in* the audience: chairs either side of the catwalk, model
+	 * walking down it and past. So this seat is lateral to the runway rather than
+	 * on its axis, which makes the model pass in profile — the view that actually
+	 * shows how a garment moves, and that a head-on shot cannot.
+	 *
+	 * A wider lens than the front seats, because the model crosses the frame
+	 * laterally here rather than walking into it. At 42° it holds the figure at
+	 * roughly half the frame height for the whole approach, which is what a person
+	 * 4 m back with someone crossing in front of them actually sees.
+	 */
+	SPECTATOR: {
+		position: new Vector3(RUNWAY.spectatorX, RUNWAY.seatedEyeHeight, RUNWAY.spectatorZ),
+		target: new Vector3(0, MODEL_MID, 0),
+		positionFollowsModel: false,
+		targetFollowsModel: true,
+		fov: 42,
+	},
+	/**
+	 * TRACK — "Subtle focus tracking." A neighbouring seat in the front row, still
+	 * and still seated, with only the gaze following. Reads as a spectator watching
+	 * with their eyes rather than a tripod panning.
+	 */
+	TRACK: {
+		position: new Vector3(0.42, RUNWAY.seatedEyeHeight + 0.05, RUNWAY.frontRowZ - 0.5),
+		target: new Vector3(0, MODEL_MID, 0),
+		positionFollowsModel: false,
+		targetFollowsModel: true,
+		// Matched to FRONT's framing, not tighter. A longer lens here cropped the
+		// figure to 116% of frame height at the mark — a close-up of a torso,
+		// which is what MODEL and INSPECT are for.
+		fov: 36,
 	},
 	/**
 	 * MODEL — §17: "Camera remains stationary while the model approaches."
 	 *
-	 * Same seat as AUDIENCE, with a following target and a longer lens. The
-	 * position flag matters here: if it followed the model the camera would track
-	 * the walk, which is exactly what this state forbids.
+	 * Same seat as FRONT, with a longer lens. The position flag matters here: if it
+	 * followed the model the camera would track the walk, which is exactly what
+	 * this state forbids.
 	 */
 	MODEL: {
-		position: new Vector3(0, RUNWAY.seatedEyeHeight, RUNWAY.audienceZ),
-		target: new Vector3(0, MODEL_CHEST, 0),
+		position: new Vector3(0, RUNWAY.seatedEyeHeight, RUNWAY.frontRowZ),
+		target: new Vector3(0, MODEL_MID, 0),
 		positionFollowsModel: false,
 		targetFollowsModel: true,
-		fov: 26,
+		// Only *slightly* longer than FRONT. This state is used at the mark, where
+		// the model is 3.7 m from the lens: at 24° the figure overflowed the frame
+		// entirely, and it still clipped at 30°. 33° keeps the whole figure in shot
+		// while remaining the tighter of the two front-row lenses — the compression
+		// that flatters a runway shot.
+		fov: 33,
 	},
 	/**
 	 * INSPECT — §17: "Camera moves toward the garment." The first state where the
@@ -147,7 +221,7 @@ export const CAMERA_POSES = {
 	 */
 	INSPECT: {
 		position: new Vector3(1.15, 1.35, 2.1),
-		target: new Vector3(0, MODEL_CHEST, 0),
+		target: new Vector3(0, MODEL_MID, 0),
 		positionFollowsModel: true,
 		targetFollowsModel: true,
 		fov: 30,
@@ -155,7 +229,7 @@ export const CAMERA_POSES = {
 	/** MACRO — §17: "Extreme garment/material close-up." */
 	MACRO: {
 		position: new Vector3(0.42, 1.28, 0.85),
-		target: new Vector3(0, MODEL_CHEST, 0),
+		target: new Vector3(0, MODEL_MID, 0),
 		positionFollowsModel: true,
 		targetFollowsModel: true,
 		fov: 22,
