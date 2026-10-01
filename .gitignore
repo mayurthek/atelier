@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+build/
+
+# source assets — raw Daz Genesis GLBs.
+# NOT redistributable (see docs/ASSETS.md). Only the converted, optimised output
+# in public/models/ is committed. Regenerate by re-running the pipeline.
+assets-src/
+
+# Generated — reproduce with `npm run preview`
+preview/
+
+# Generated — reproduce with `npm run assets:build`
+content/figure-metrics.json
+
+# env
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# misc
+*.log
+*.tsbuildinfo

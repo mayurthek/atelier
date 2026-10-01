@@ -1,0 +1,32 @@
+{
+  "name": "atelier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ATELIER — an immersive digital fashion archive",
+  "type": "module",
+  "scripts": {
+    "assets:build": "tsx scripts/prepare-assets.ts",
+    "assets:check": "tsx scripts/inspect-models.ts",
+    "anim:check": "tsx scripts/check-walk.ts",
+    "show:check": "tsx scripts/check-show.ts",
+    "check": "npm run typecheck && npm run anim:check && npm run show:check",
+    "anim:preview": "tsx scripts/preview-gait.ts",
+    "preview": "tsx scripts/preview-gait.ts male && tsx scripts/preview-gait.ts female",
+    "typecheck": "tsc --noEmit",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "@types/three": "^0.186.0",
+    "sharp": "^0.35.5",
+    "three": "^0.186.1",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
